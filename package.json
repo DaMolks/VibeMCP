@@ -1,0 +1,14 @@
+# package.json (suite)
+
+  "devDependencies": {
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "optionalDependencies": {
+    "cloudflared": "^0.5.0"
+  }
+}

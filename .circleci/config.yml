@@ -1,0 +1,139 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: cimg/node:16.13.0
+    
+    steps:
+      - checkout
+      
+      # Restore dependencies from cache
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            - v1-dependencies-
+      
+      # Install dependencies
+      - run: npm install
+      
+      # Save dependencies to cache
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+      
+      # Run linting
+      - run: npm run lint
+      
+      # Run tests
+      - run: npm test
+  
+  package:
+    docker:
+      - image: cimg/node:16.13.0
+    
+    steps:
+      - checkout
+      
+      # Restore dependencies from cache
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            - v1-dependencies-
+      
+      # Install dependencies
+      - run: npm install
+      
+      # Build the project
+      - run: npm run build
+      
+      # Create package archive
+      - run: |
+          cd dist
+          npm pack
+          mkdir -p /tmp/artifacts
+          cp vibe-mcp-*.tgz /tmp/artifacts/
+      
+      # Store package as artifact
+      - store_artifacts:
+          path: /tmp/artifacts
+          destination: packages
+  
+  release:
+    docker:
+      - image: cimg/node:16.13.0
+    
+    steps:
+      - checkout
+      
+      # Restore dependencies from cache
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            - v1-dependencies-
+      
+      # Install dependencies
+      - run: npm install
+      
+      # Build the project
+      - run: npm run build
+      
+      # Publish to npm (only on tags)
+      - run: |
+          echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > ~/.npmrc
+          cd dist
+          npm publish
+    
+    # Only run on tagged commits
+    filters:
+      tags:
+        only: /^v.*/
+      branches:
+        ignore: /.*/
+
+workflows:
+  version: 2
+  
+  # Build and test on every commit
+  build-and-test:
+    jobs:
+      - build
+      - package:
+          requires:
+            - build
+  
+  # Release on tags
+  release-workflow:
+    jobs:
+      - build:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - package:
+          requires:
+            - build
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - approval:
+          type: approval
+          requires:
+            - package
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - release:
+          requires:
+            - approval
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
